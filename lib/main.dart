@@ -25,11 +25,18 @@ class MyApp extends StatelessWidget {
 
 class Device {
   final String ip;
-  final String name;
-  final IconData icon;
+  final String hostname;
+  final String deviceType;
   final String detectionMethod;
+  final IconData icon;
 
-  Device(this.ip, this.name, this.icon, this.detectionMethod);
+  Device({
+    required this.ip,
+    required this.hostname,
+    required this.deviceType,
+    required this.detectionMethod,
+    required this.icon,
+  });
 }
 
 class MiniNmapHome extends StatefulWidget {
@@ -48,6 +55,169 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
 
   final List<int> _priorityPorts = [445, 135, 139, 80, 443, 22, 3389];
   final List<int> _secondaryPorts = [21, 554, 8080, 8443, 9100, 5353, 1900];
+
+  Future<String> _resolveHostname(String ip) async {
+    try {
+      final address = InternetAddress(ip);
+      // Timeout de 800ms para no penalizar el rendimiento
+      final host = await address.reverse().timeout(
+        const Duration(milliseconds: 800),
+      );
+      return host.host;
+    } catch (_) {
+      return "Host desconocido";
+    }
+  }
+
+  String _classifyDevice(String hostname, String ip) {
+    String host = hostname.toLowerCase();
+
+    // 1. Prioridad Router por hostname
+    if (host.contains('router') ||
+        host.contains('gateway') ||
+        host.contains('tplink') ||
+        host.contains('tp-link') ||
+        host.contains('huawei') ||
+        host.contains('zte') ||
+        host.contains('asus') ||
+        host.contains('mikrotik') ||
+        host.contains('mercusys') ||
+        host.contains('netgear') ||
+        host.contains('dlink') ||
+        host.contains('zyxel') ||
+        host.contains('totolink') ||
+        host.contains('cisco') ||
+        host.contains('ubiquiti')) {
+      return "Router";
+    }
+
+    // 2. Fallback Router por IP heurística (solo si hostname es desconocido)
+    if (hostname == "Host desconocido") {
+      if (ip.endsWith('.1') || ip.endsWith('.254')) {
+        return "Router";
+      }
+    }
+
+    // 3. PC
+    if (host.contains('desktop') ||
+        host.contains('desktop-') ||
+        host.contains('laptop') ||
+        host.contains('pc') ||
+        host.contains('windows') ||
+        host.contains('msi') ||
+        host.contains('dell') ||
+        host.contains('hp') ||
+        host.contains('lenovo') ||
+        host.contains('thinkpad') ||
+        host.contains('ideapad') ||
+        host.contains('victus') ||
+        host.contains('omen') ||
+        host.contains('latitude') ||
+        host.contains('inspiron') ||
+        host.contains('elitebook') ||
+        host.contains('probook') ||
+        host.contains('pavilion') ||
+        host.contains('acer') ||
+        host.contains('surface') ||
+        host.contains('vaio') ||
+        host.contains('workstation')) {
+      return "PC";
+    }
+
+    // 4. Teléfono
+    if (host.contains('android') ||
+        host.contains('galaxy') ||
+        host.contains('redmi') ||
+        host.contains('xiaomi') ||
+        host.contains('infinix') ||
+        host.contains('iphone') ||
+        host.contains('pixel') ||
+        host.contains('motorola') ||
+        host.contains('realme') ||
+        host.contains('honor') ||
+        host.contains('huawei') ||
+        host.contains('oppo') ||
+        host.contains('vivo') ||
+        host.contains('oneplus') ||
+        host.contains('tecno') ||
+        host.contains('nokia') ||
+        host.contains('sony') ||
+        host.contains('asus') ||
+        host.contains('moto') ||
+        host.contains('poco') ||
+        host.contains('sm-')) {
+      return "Teléfono";
+    }
+
+    // 5. Impresora
+    if (host.contains('tv') ||
+        host.contains('smarttv') ||
+        host.contains('samsung') ||
+        host.contains('lg') ||
+        host.contains('bravia') ||
+        host.contains('roku') ||
+        host.contains('chromecast') ||
+        host.contains('firestick') ||
+        host.contains('firetv') ||
+        host.contains('hisense') ||
+        host.contains('tcl') ||
+        host.contains('philips') ||
+        host.contains('webos') ||
+        host.contains('androidtv')) {
+      return "Impresora";
+    }
+
+    // 6. TV
+    if (host.contains('tv') ||
+        host.contains('smarttv') ||
+        host.contains('samsung') ||
+        host.contains('lg') ||
+        host.contains('bravia') ||
+        host.contains('roku') ||
+        host.contains('chromecast') ||
+        host.contains('firestick') ||
+        host.contains('firetv') ||
+        host.contains('hisense') ||
+        host.contains('tcl') ||
+        host.contains('philips') ||
+        host.contains('webos') ||
+        host.contains('androidtv')) {
+      return "TV";
+    }
+
+    return "Dispositivo";
+  }
+
+  IconData _getIconForType(String type) {
+    switch (type) {
+      case "Router":
+        return Icons.router;
+      case "PC":
+        return Icons.computer;
+      case "Teléfono":
+        return Icons.smartphone;
+      case "TV":
+        return Icons.tv;
+      case "Impresora":
+        return Icons.print;
+      default:
+        return Icons.power;
+    }
+  }
+
+  Future<Device> _buildDevice(String ip, String method) async {
+    String hostname = await _resolveHostname(ip);
+    String type = _classifyDevice(hostname, ip);
+    IconData icon = _getIconForType(type);
+
+    return Device(
+      ip: ip,
+      hostname: hostname,
+      deviceType: type,
+      detectionMethod: method,
+      icon: icon,
+    );
+  }
 
   Future<bool> _probeIp(String ip, List<int> ports, Duration timeout) async {
     for (int port in ports) {
@@ -68,7 +238,9 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
       _scanCompleted = false;
       _devices.clear();
       _subnet = 'Buscando red...';
-      _statusMessage = isDeepScan ? 'Iniciando escaneo profundo...' : 'Iniciando escaneo rápido...';
+      _statusMessage = isDeepScan
+          ? 'Iniciando escaneo profundo...'
+          : 'Iniciando escaneo rápido...';
     });
 
     try {
@@ -94,19 +266,16 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
       });
       final scanner = LanScanner();
       final List<Host> icmpHosts = await scanner.quickIcmpScanAsync(subnetBase);
-      
+
       final Set<String> foundIps = {};
-      
+
       for (var host in icmpHosts) {
-        foundIps.add(host.internetAddress.address);
-        _devices.add(
-          Device(
-            host.internetAddress.address, 
-            'Dispositivo activo', 
-            Icons.devices,
-            'ICMP'
-          )
-        );
+        String addr = host.internetAddress.address;
+        foundIps.add(addr);
+        Device device = await _buildDevice(addr, 'ICMP');
+        setState(() {
+          _devices.add(device);
+        });
       }
 
       if (isDeepScan) {
@@ -126,27 +295,36 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
         // Escaneo concurrente limitado para eficiencia
         const int batchSize = 20;
         for (int i = 0; i < remainingIps.length; i += batchSize) {
-          int end = (i + batchSize < remainingIps.length) ? i + batchSize : remainingIps.length;
+          int end = (i + batchSize < remainingIps.length)
+              ? i + batchSize
+              : remainingIps.length;
           List<String> batch = remainingIps.sublist(i, end);
-          
+
           setState(() {
             _statusMessage = 'Escaneando bloque TCP ${i ~/ batchSize + 1}...';
           });
 
           List<Future<void>> probes = batch.map((targetIp) async {
             // Nivel 1: Puertos prioritarios (300ms)
-            bool isActive = await _probeIp(targetIp, _priorityPorts, const Duration(milliseconds: 300));
-            
+            bool isActive = await _probeIp(
+              targetIp,
+              _priorityPorts,
+              const Duration(milliseconds: 300),
+            );
+
             // Nivel 2: Solo si falló el Nivel 1 (500ms)
             if (!isActive) {
-              isActive = await _probeIp(targetIp, _secondaryPorts, const Duration(milliseconds: 500));
+              isActive = await _probeIp(
+                targetIp,
+                _secondaryPorts,
+                const Duration(milliseconds: 500),
+              );
             }
 
             if (isActive) {
+              Device device = await _buildDevice(targetIp, 'TCP');
               setState(() {
-                _devices.add(
-                  Device(targetIp, 'Dispositivo activo', Icons.settings_ethernet, 'TCP')
-                );
+                _devices.add(device);
               });
             }
           }).toList();
@@ -207,7 +385,9 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
                       style: TextStyle(
                         fontSize: 16,
                         color: _scanCompleted ? Colors.blue : Colors.grey,
-                        fontWeight: _scanCompleted ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: _scanCompleted
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -220,32 +400,58 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 ElevatedButton(
-                  onPressed: _isScanning ? null : () => _performScan(isDeepScan: false),
+                  onPressed: _isScanning
+                      ? null
+                      : () => _performScan(isDeepScan: false),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
                   ),
                   child: Column(
                     children: [
-                      const Text('⚡ Escaneo rápido', 
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      Text('Descubre dispositivos comunes', 
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                      const Text(
+                        '⚡ Escaneo rápido',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Descubre dispositivos comunes',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
-                  onPressed: _isScanning ? null : () => _performScan(isDeepScan: true),
+                  onPressed: _isScanning
+                      ? null
+                      : () => _performScan(isDeepScan: true),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   child: Column(
                     children: [
-                      const Text('🔎 Escaneo profundo', 
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      Text('Busca dispositivos ocultos y protegidos', 
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                      const Text(
+                        '🔎 Escaneo profundo',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Busca dispositivos ocultos y protegidos',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -260,7 +466,10 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
                     const SizedBox(height: 16),
                     const Text(
                       '📡 Escaneando la red...',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const Text(
                       'Buscando dispositivos activos',
@@ -270,9 +479,9 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
                     Text(
                       _statusMessage,
                       style: TextStyle(
-                        fontSize: 12, 
-                        fontStyle: FontStyle.italic, 
-                        color: Theme.of(context).colorScheme.primary
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ],
@@ -290,7 +499,10 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
                 if (_scanCompleted)
                   Text(
                     'Total: ${_devices.length}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
                   ),
               ],
             ),
@@ -301,7 +513,11 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.devices_other, size: 64, color: Colors.grey),
+                          Icon(
+                            Icons.devices_other,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
                           SizedBox(height: 16),
                           Text(
                             'Ningún dispositivo encontrado',
@@ -318,24 +534,51 @@ class _MiniNmapHomeState extends State<MiniNmapHome> {
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: device.detectionMethod == 'ICMP' 
-                                  ? Colors.blue.shade100 
+                              backgroundColor: device.detectionMethod == 'ICMP'
+                                  ? Colors.blue.shade100
                                   : Colors.orange.shade100,
                               child: Icon(
-                                device.icon, 
-                                color: device.detectionMethod == 'ICMP' 
-                                    ? Colors.blue 
-                                    : Colors.orange
+                                device.icon,
+                                color: device.detectionMethod == 'ICMP'
+                                    ? Colors.blue
+                                    : Colors.orange,
                               ),
                             ),
-                            title: Text(device.ip, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-                            subtitle: Text(device.name),
+                            title: Text(
+                              device.hostname,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  device.ip,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                Text(
+                                  device.deviceType,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
                             trailing: Chip(
                               label: Text(
-                                device.detectionMethod,
-                                style: const TextStyle(fontSize: 10, color: Colors.white),
+                                'Vía ${device.detectionMethod}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                ),
                               ),
-                              backgroundColor: device.detectionMethod == 'ICMP' ? Colors.blue : Colors.orange,
+                              backgroundColor: device.detectionMethod == 'ICMP'
+                                  ? Colors.blue
+                                  : Colors.orange,
                               padding: EdgeInsets.zero,
                               visualDensity: VisualDensity.compact,
                             ),
