@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/device.dart';
+import '../screens/device_details_screen.dart';
 
 class DeviceCard extends StatelessWidget {
   final Device device;
@@ -11,6 +12,14 @@ class DeviceCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DeviceDetailsScreen(device: device),
+            ),
+          );
+        },
         leading: CircleAvatar(
           backgroundColor: device.detectionMethod == 'ICMP'
               ? Colors.blue.shade100
@@ -36,7 +45,7 @@ class DeviceCard extends StatelessWidget {
               ),
             ),
             Text(
-              device.deviceType,
+              '${device.deviceType} • ${device.detectionMethod}',
               style: const TextStyle(
                 fontSize: 12,
                 color: Colors.grey,
@@ -44,17 +53,9 @@ class DeviceCard extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Chip(
-          label: Text(
-            'Vía ${device.detectionMethod}',
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.white,
-            ),
-          ),
-          backgroundColor: device.detectionMethod == 'ICMP' ? Colors.blue : Colors.orange,
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: Colors.grey,
         ),
       ),
     );
